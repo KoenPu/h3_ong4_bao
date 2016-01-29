@@ -2,7 +2,7 @@
     <string name="app_name">K抢红包</string>
     <string name="app_description">打开开关，正常使用微信，坐等红包进账</string>
     <string name="service_status">当前辅助服务状态:</string>
-    <string name="service_name">设置抢红包辅助服务</string>
+    <string name="service_name">开启K抢红包</string>
     <string name="preference">功能设置</string>
     <string name="update_error">遇到一些问题,请前往Github手动更新</string>
     <string name="update_new_seg1">发现新版本(</string>

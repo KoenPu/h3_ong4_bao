@@ -1,4 +1,4 @@
-package pu.hongbao.activity;
+package pu.hongbao.fragment;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -12,7 +12,7 @@ import pu.hongbao.R;
 /**
  * Created by koen on 2016/1/29.
  */
-public class SettingsActivity extends PreferenceFragment{
+public class SettingsFragment extends PreferenceFragment{
 
 
     @Override

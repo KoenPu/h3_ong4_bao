@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="#d95449"
-    tools:context=".activity.SettingsActivity">
+    tools:context=".fragment.SettingsFragment">
 
     <ImageView
         android:id="@+id/preference_action_bar_placeholder"
@@ -32,7 +32,6 @@
         android:layout_marginLeft="10dp"
         android:layout_marginRight="8dp"
         android:clickable="true"
-        android:onClick="performBack"
         android:src="@mipmap/ic_back" />
 
     <ImageView
@@ -45,7 +44,6 @@
         android:layout_marginLeft="8dp"
         android:layout_marginRight="10dp"
         android:clickable="true"
-        android:onClick="enterAccessibilityPage"
         android:padding="6dp"
         android:src="@mipmap/ic_refresh" />
 </RelativeLayout>
