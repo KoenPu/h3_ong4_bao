@@ -14,6 +14,10 @@ import android.view.accessibility.AccessibilityManager;
 import android.widget.Button;
 import android.widget.ImageButton;
 
+import com.umeng.analytics.AnalyticsConfig;
+import com.umeng.analytics.MobclickAgent;
+import com.umeng.update.UmengUpdateAgent;
+
 import java.util.List;
 
 import pu.hongbao.R;
@@ -27,14 +31,31 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button switchPlugin;
     private ImageButton btnSetting;
 
+    private final static String APPKEY = "56ac106e67e58e875f000ba3";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         getSupportActionBar().hide();
+        AnalyticsConfig.setAppkey(this, APPKEY);
+        UmengUpdateAgent.setAppkey(APPKEY);
+        UmengUpdateAgent.update(this);
         initView();
         updateServiceStatus();
         setPreferences();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        MobclickAgent.onResume(this);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        MobclickAgent.onPause(this);
     }
 
     private void initView() {
@@ -72,24 +93,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
     }
 
-    private void openSetting() {
+    /*private void openSetting() {
         FragmentManager fragmentManager = getFragmentManager();
         FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
 
         SettingsFragment settingsFragment = new SettingsFragment();
         fragmentTransaction.replace(R.id.setting_layout, settingsFragment);
         fragmentTransaction.commit();
-    }
+    }*/
 
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.button_accessible:
                 startActivity(mAccessibleIntent);
+                MobclickAgent.onEvent(this, "setting");
                 break;
 
             case R.id.btn_setting:
-                openSetting();
+                //openSetting();
                 break;
         }
     }
