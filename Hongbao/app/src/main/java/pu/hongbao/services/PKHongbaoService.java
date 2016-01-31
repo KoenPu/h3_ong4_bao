@@ -4,10 +4,14 @@ import android.accessibilityservice.AccessibilityService;
 import android.annotation.TargetApi;
 import android.app.Notification;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Parcelable;
 import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
@@ -22,16 +26,7 @@ import pu.hongbao.utils.HongbaoSignature;
 /**
  * Created by koen on 2016/1/29.
  */
-public class PKHongbaoService extends AccessibilityService{
-
-    private AccessibilityNodeInfo mReceiveNode, mUnpackNode;
-
-    private boolean mLuckyMoneyPicked, mLuckyMoneyReceived, mNeedUnpack, mNeedBack;
-
-    private String lastContentDescription = "";
-    private HongbaoSignature signature = new HongbaoSignature();
-
-    private AccessibilityNodeInfo rootNodeInfo;
+public class PKHongbaoService extends AccessibilityService {
 
     private static final String WECHAT_DETAILS_EN = "Details";
     private static final String WECHAT_DETAILS_CH = "红包详情";
@@ -40,63 +35,44 @@ public class PKHongbaoService extends AccessibilityService{
     private static final String WECHAT_EXPIRES_CH = "红包已失效";
     private static final String WECHAT_VIEW_SELF_CH = "查看红包";
     private static final String WECHAT_VIEW_OTHERS_CH = "领取红包";
-    private final static String WECHAT_NOTIFICATION_TIP = "[微信红包]";
+    private static final String WECHAT_NOTIFICATION_TIP = "[微信红包]";
+    private static final String WECHAT_NOTIFICATION_TIP2 = "个联系人发来";
+    private static final String WECHAT_LUCKMONEY_RECEIVE_ACTIVITY = "LuckyMoneyReceiveUI";
+    private static final String WECHAT_LUCKMONEY_DETAIL_ACTIVITY = "LuckyMoneyDetailUI";
+    private static final String WECHAT_LUCKMONEY_GENERAL_ACTIVITY = "LauncherUI";
+    private String currentActivityName = WECHAT_LUCKMONEY_GENERAL_ACTIVITY;
 
-    private boolean mMutex = false;
+    private AccessibilityNodeInfo rootNodeInfo, mReceiveNode, mUnpackNode; //根node, 收到的红包, 未打开的红包
+    private boolean mLuckyMoneyPicked, mLuckyMoneyReceived, mNeedUnpack, mNeedBack;
+    private HongbaoSignature signature = new HongbaoSignature();
+    private boolean mMutex = false;  //是否在占用中
 
-    public static Map<String, Boolean> watchedFlags = new HashMap<>(); // 用于设置用户选择
-
-    @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (watchedFlags == null) return;
+        setCurrentActivityName(event);
+        if (watchNotification(event)) return;
+        if (watchList(event)) return;
+        watchChat(event);
+    }
 
-        /* 检测通知 */
-        if (!mMutex) {
-            if (watchedFlags.get("pref_watch_notification") && watchNotification(event)) return;
-            if (watchedFlags.get("pref_watch_list") && watchList(event)) return;
+    private void setCurrentActivityName(AccessibilityEvent event) {
+
+        ComponentName componentName = new ComponentName(
+                event.getPackageName().toString(),
+                event.getClassName().toString()
+        );
+
+        try {
+            getPackageManager().getActivityInfo(componentName, 0);
+            currentActivityName = componentName.flattenToShortString();
+        } catch (PackageManager.NameNotFoundException e) {
+            currentActivityName = WECHAT_LUCKMONEY_GENERAL_ACTIVITY;
         }
-
-        if (!watchedFlags.get("pref_watch_chat")) return;
-
-        this.rootNodeInfo = event.getSource();
-
-        if (rootNodeInfo == null) return;
-
-        mReceiveNode = null;
-        mUnpackNode = null;
-
-        checkNodeInfo();
-
-        /* 如果已经接收到红包并且还没有戳开 */
-        if (mLuckyMoneyReceived && !mLuckyMoneyPicked && (mReceiveNode != null)) {
-            mMutex = true;
-
-            AccessibilityNodeInfo cellNode = mReceiveNode;
-            cellNode.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            mLuckyMoneyReceived = false;
-            mLuckyMoneyPicked = true;
-        }
-
-        /* 如果戳开但还未领取 */
-        if (mNeedUnpack && (mUnpackNode != null)) {
-            AccessibilityNodeInfo cellNode = mUnpackNode;
-            cellNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            mNeedUnpack = false;
-        }
-
-        if (mNeedBack) {
-            performGlobalAction(GLOBAL_ACTION_BACK);
-            mMutex = false;
-            mNeedBack = false;
-        }
-
     }
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        watchFlagsFromPerference();
     }
 
     @Override
@@ -104,121 +80,127 @@ public class PKHongbaoService extends AccessibilityService{
 
     }
 
-    private void watchFlagsFromPerference() {
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        sharedPreferences.registerOnSharedPreferenceChangeListener(new SharedPreferences.OnSharedPreferenceChangeListener() {
-            @Override
-            public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-                Boolean changedValue = sharedPreferences.getBoolean(key, false);
-                watchedFlags.put(key, changedValue);
-            }
-        });
 
-        List<String> flagsList = Arrays.asList("pref_watch_notification", "pref_watch_list", "pref_watch_chat");
-        for (String flag: flagsList) {
-            watchedFlags.put(flag, sharedPreferences.getBoolean(flag, false));
-        }
-    }
-
+    // notification调用成功返回true， 失败返回false
     private boolean watchNotification(AccessibilityEvent event) {
-        // 没有notification
-        if (event.getEventType() !=
-                AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED)
-            return false;
-
-        // 没有红包
-        String tip = event.getText().toString();
-        if(!tip.contains(WECHAT_NOTIFICATION_TIP)) return true;
-
-        Parcelable parcelable = event.getParcelableData();
-        if (parcelable instanceof Notification) {
-            Notification notification = (Notification) parcelable;
-            try {
-                notification.contentIntent.send();
-            } catch (PendingIntent.CanceledException e) {
-                e.printStackTrace();
+        boolean isRun = false;
+        if (event.getEventType() ==
+                AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+            String tip = event.getText().toString();
+            if (tip.contains(WECHAT_NOTIFICATION_TIP) || tip.contains(WECHAT_NOTIFICATION_TIP2)) {
+                Parcelable parcelable = event.getParcelableData();
+                if (parcelable != null && parcelable instanceof Notification) {
+                    Notification notification = (Notification) parcelable;
+                    try {
+                        notification.contentIntent.send();
+                        isRun = true;
+                    } catch (PendingIntent.CanceledException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
         }
-        return true;
+        return isRun;
     }
 
+    //在聊天列表
     private boolean watchList(AccessibilityEvent event) {
-        // 没有信息
-        if (event.getEventType() !=
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-            || event.getSource() == null )
-            return false;
-
-        List<AccessibilityNodeInfo> nodes = event.getSource().
-                findAccessibilityNodeInfosByText(WECHAT_NOTIFICATION_TIP);
-
-        if (!nodes.isEmpty()) {
-            AccessibilityNodeInfo nodeToClick = nodes.get(0);
-            CharSequence contentDes = nodeToClick.getContentDescription();
-            if (contentDes != null && !lastContentDescription.equals(contentDes)) {
-                nodeToClick.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                lastContentDescription = contentDes.toString();
-                return true;
+        boolean isRun = false;
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                && event.getSource() != null) {
+            List<AccessibilityNodeInfo> nodes = event.getSource()
+                    .findAccessibilityNodeInfosByText(WECHAT_NOTIFICATION_TIP);
+            if (!nodes.isEmpty()) {
+                AccessibilityNodeInfo nodeToClick = nodes.get(0); //只打开最上面的一个
+                CharSequence contentDescription = nodeToClick.getContentDescription();
+                if (contentDescription != null && !signature.getContentDescription().equals(contentDescription)) {
+                    nodeToClick.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    signature.setContentDescription(contentDescription.toString());
+                    isRun = true;
+                }
             }
+        }
+        return isRun;
+    }
+
+    //在聊天页面
+    private void watchChat(AccessibilityEvent event) {
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && event.getSource() != null) {
+            rootNodeInfo = event.getSource();
+            if (rootNodeInfo != null) {
+                checkNodeInfo(event.getEventType());
+            }
+        }
+    }
+
+    private void checkNodeInfo(int eventType) {
+
+        AccessibilityNodeInfo node1 = getTheLastNode(WECHAT_VIEW_OTHERS_CH, WECHAT_VIEW_SELF_CH);
+        if (node1 != null && currentActivityName.contains(WECHAT_LUCKMONEY_GENERAL_ACTIVITY)) {
+            if (this.signature.generateSignature(node1, "")) {
+                node1.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            }
+            return;
+        }
+
+        //* 戳开红包，红包还没抢完，遍历节点匹配“拆红包” *//*
+        AccessibilityNodeInfo node2 = (this.rootNodeInfo.getChildCount() > 3) ?
+                this.rootNodeInfo.getChild(3) : null;
+        if (node2 != null && node2.getClassName().equals("android.widget.Button")
+                && currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY)) {
+            node2.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            return;
+        }
+
+        //* 戳开红包，红包已被抢完，遍历节点匹配“红包详情”和“手慢了” *//*
+        boolean hasNodes = this.hasOneOfThoseNodes(
+                WECHAT_BETTER_LUCK_CH, WECHAT_DETAILS_CH,
+                WECHAT_BETTER_LUCK_EN, WECHAT_DETAILS_EN, WECHAT_EXPIRES_CH);
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && hasNodes
+                && (currentActivityName.contains(WECHAT_LUCKMONEY_DETAIL_ACTIVITY)
+                || currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY))) {
+            performGlobalAction(GLOBAL_ACTION_BACK);
+            performGlobalAction(GLOBAL_ACTION_BACK);
+        }
+    }
+
+    private boolean hasOneOfThoseNodes(String... texts) {
+        for (String text : texts) {
+            if (text == null) continue;
+
+            List<AccessibilityNodeInfo> nodes = this.rootNodeInfo.findAccessibilityNodeInfosByText(text);
+
+            if (!nodes.isEmpty()) return true;
         }
         return false;
     }
 
-    private void checkNodeInfo() {
-        if (this.rootNodeInfo == null) return;
+    private AccessibilityNodeInfo getTheLastNode(String... texts) {
+        int bottom = 0;
+        AccessibilityNodeInfo lastNode = null;
 
-        // 聊天会话窗口，遍历节点，匹配“领取红包”和“查看红包”
-        List<AccessibilityNodeInfo> nodes1 = findAccessibilityNodeInfosByTexts(this.rootNodeInfo, new String[]{
-                WECHAT_VIEW_OTHERS_CH, WECHAT_VIEW_SELF_CH});
-
-        if (!nodes1.isEmpty()) {
-            AccessibilityNodeInfo targetNode = nodes1.get(nodes1.size() - 1);
-            if (this.signature.generateSignature(targetNode)) {
-                mLuckyMoneyReceived = true;
-                mReceiveNode = targetNode;
-            }
-            return;
-        }
-
-        /* 戳开红包，红包还没抢完，遍历节点匹配“拆红包” */
-        AccessibilityNodeInfo node2 = (this.rootNodeInfo.getChildCount() > 3) ?
-                this.rootNodeInfo.getChild(3) : null;
-        if (node2 != null && node2.getClassName().equals("android.widget.Button")) {
-            mUnpackNode = node2;
-            mNeedUnpack = true;
-            return;
-        }
-
-        /* 戳开红包，红包已被抢完，遍历节点匹配“红包详情”和“手慢了” */
-        if (mLuckyMoneyPicked) {
-            List<AccessibilityNodeInfo> node3 = this.findAccessibilityNodeInfosByTexts(this.rootNodeInfo, new String[]{
-                    WECHAT_BETTER_LUCK_CH, WECHAT_DETAILS_CH,
-                    WECHAT_BETTER_LUCK_EN, WECHAT_DETAILS_EN, WECHAT_EXPIRES_CH});
-            if (!node3.isEmpty()) {
-                mNeedBack = true;
-                mLuckyMoneyPicked = false;
-            }
-        }
-
-
-
-    }
-
-    /**
-     * 批量化执行AccessibilityNodeInfo.findAccessibilityNodeInfosByText(text).
-     * 由于这个操作影响性能,将所有需要匹配的文字一起处理,尽早返回
-     *
-     * @param nodeInfo 窗口根节点
-     * @param texts    需要匹配的字符串们
-     * @return 匹配到的节点数组
-     */
-    private List<AccessibilityNodeInfo> findAccessibilityNodeInfosByTexts(AccessibilityNodeInfo nodeInfo, String[] texts) {
         for (String text : texts) {
             if (text == null) continue;
-            List<AccessibilityNodeInfo> nodes = nodeInfo.
-                    findAccessibilityNodeInfosByText(text);
-            if (!nodes.isEmpty()) return nodes;
+
+            List<AccessibilityNodeInfo> nodes = this.rootNodeInfo.findAccessibilityNodeInfosByText(text);
+
+            if (!nodes.isEmpty()) {
+                AccessibilityNodeInfo node = nodes.get(nodes.size() - 1); //点开最后一个
+                lastNode = node;
+                /*Rect bounds = new Rect();
+                node.getBoundsInScreen(bounds);
+                if (bounds.bottom > bottom) {
+                    bottom = bounds.bottom;
+                    lastNode = node;
+                }*/
+            }
         }
-        return new ArrayList<>();
+        return lastNode;
+    }
+
+    private void l(String s) {
+        Log.e("koen", s);
     }
 }

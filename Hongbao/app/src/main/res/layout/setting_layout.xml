@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="200dp"
+    android:layout_gravity="right"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingLeft="15dp"
+    android:paddingRight="15dp"
+    android:background="#b9493a">
+
+    <Button
+        android:id="@+id/use_teaching"
+        style="@style/setting_text_style"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:background="@drawable/item_layout"
+        android:layout_marginTop="20dp"
+        android:text="使用教程"/>
+
+    <Button
+        android:id="@+id/check_update"
+        style="@style/setting_text_style"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:layout_below="@id/use_teaching"
+        android:background="@drawable/item_layout"
+        android:layout_marginTop="20dp"
+        android:text="检查更新"/>
+
+
+    <Button
+        android:id="@+id/statement"
+        style="@style/setting_text_style"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:layout_below="@id/check_update"
+        android:background="@drawable/item_layout"
+        android:layout_marginTop="20dp"
+        android:text="免责声明"/>
+
+    <Button
+        android:id="@+id/about_us"
+        style="@style/setting_text_style"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:background="@drawable/item_layout"
+        android:layout_below="@+id/statement"
+        android:layout_marginTop="20dp"
+        android:text="关于我"/>
+
+
+    <ScrollView
+        android:layout_marginTop="20dp"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_below="@id/about_us">
+
+        <TextView
+            android:id="@+id/about_layout_textview"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            >
+        </TextView>
+
+    </ScrollView>
+
+
+
+    <TextView
+        android:id="@+id/textview_version"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:textColor="#c5a45e"
+        android:textSize="15dp"
+        android:layout_marginBottom="15dp"
+        android:text="版本号:"/>
+
+</RelativeLayout>

@@ -1,5 +1,6 @@
 package pu.hongbao.utils;
 
+import android.graphics.Rect;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 /**
@@ -7,32 +8,43 @@ import android.view.accessibility.AccessibilityNodeInfo;
  */
 public class HongbaoSignature {
 
-    private String sender, content, time;
+    private String sender, content, time, contentDescription = "";
 
-    public boolean generateSignature(AccessibilityNodeInfo node) {
+    public boolean generateSignature(AccessibilityNodeInfo node, String excludeWords) {
         try {
-
+            /* The hongbao container node. It should be a LinearLayout. By specifying that, we can avoid text messages. */
             AccessibilityNodeInfo hongbaoNode = node.getParent();
-            String hongbaoContent = hongbaoNode.getChild(0).getText().toString();
+            if (!"android.widget.LinearLayout".equals(hongbaoNode.getClassName())) return false;
 
-            if (hongbaoContent == null) {
-                return false;
+            /* The text in the hongbao. Should mean something. */
+            String hongbaoContent = hongbaoNode.getChild(0).getText().toString();
+            if (hongbaoContent == null) return false;
+
+            /* Check the user's exclude words list. */
+            String[] excludeWordsArray = excludeWords.split(" +");
+            for (String word : excludeWordsArray) {
+                if (word.length() > 0 && hongbaoContent.contains(word)) return false;
             }
 
+            /* The container node for a piece of message. It should be inside the screen.
+                Or sometimes it will get opened twice while scrolling. */
             AccessibilityNodeInfo messageNode = hongbaoNode.getParent();
 
-            String[] hongbaoInfo = getDesFromNode(messageNode);
+            Rect bounds = new Rect();
+            messageNode.getBoundsInScreen(bounds);
+            if (bounds.top < 0) return false;
 
-            if (this.getSignature(hongbaoInfo[0], hongbaoContent, hongbaoInfo[1])
-                    .equals(this.toString())) {
-                return false;
-            }
+            /* The sender and possible timestamp. Should mean something too. */
+            String[] hongbaoInfo = getSenderContentDescriptionFromNode(messageNode);
+            if (this.getSignature(hongbaoInfo[0], hongbaoContent, hongbaoInfo[1]).equals(this.toString())) return false;
 
+            /* So far we make sure it's a valid new coming hongbao. */
             this.sender = hongbaoInfo[0];
             this.time = hongbaoInfo[1];
             this.content = hongbaoContent;
             return true;
         } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
     }
@@ -54,23 +66,27 @@ public class HongbaoSignature {
         return signature.substring(0, signature.length() - 1);
     }
 
-    private String[] getDesFromNode(AccessibilityNodeInfo nodeInfo) {
-        int count = nodeInfo.getChildCount();
+    private String[] getSenderContentDescriptionFromNode(AccessibilityNodeInfo node) {
+        int count = node.getChildCount();
         String[] result = {"unknownSender", "unknownTime"};
-        for (int i = 0 ; i < count ; i++) {
-            AccessibilityNodeInfo thisNode = nodeInfo.getChild(i);
+        for (int i = 0; i < count; i++) {
+            AccessibilityNodeInfo thisNode = node.getChild(i);
             if ("android.widget.ImageView".equals(thisNode.getClassName())) {
-                CharSequence contentDes = thisNode.getContentDescription();
-                if (contentDes != null) {
-                    result[0] = contentDes.toString();
-                }
+                CharSequence contentDescription = thisNode.getContentDescription();
+                if (contentDescription != null) result[0] = contentDescription.toString();
             } else if ("android.widget.TextView".equals(thisNode.getClassName())) {
                 CharSequence thisNodeText = thisNode.getText();
-                if (thisNodeText != null) {
-                    result[1] = thisNodeText.toString();
-                }
+                if (thisNodeText != null) result[1] = thisNodeText.toString();
             }
         }
         return result;
+    }
+
+    public String getContentDescription() {
+        return this.contentDescription;
+    }
+
+    public void setContentDescription(String description) {
+        this.contentDescription = description;
     }
 }

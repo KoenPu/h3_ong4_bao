@@ -1,14 +1,13 @@
 <resources>
     <string name="app_name">K抢红包</string>
-    <string name="app_description">打开开关，正常使用微信，坐等红包进账</string>
+    <string name="app_description">说明：打开上面的开关，正常使用微信或其他应用，即可自动领取微信红包</string>
     <string name="service_status">当前辅助服务状态:</string>
-    <string name="service_name">开启K抢红包</string>
+    <string name="service_name">开启K抢红包服务</string>
     <string name="preference">功能设置</string>
-    <string name="update_error">遇到一些问题,请前往Github手动更新</string>
-    <string name="update_new_seg1">发现新版本(</string>
-    <string name="update_new_seg2">),正在为您准备下载</string>
-    <string name="update_new_seg3">),请进入设置完成更新</string>
     <string name="update_already_latest">已经是最新版本了</string>
     <string name="service_off">关闭插件</string>
     <string name="service_on">开启插件</string>
+    <string name="disclaimer">该APP一切资源均来自互联网，乃学习研究技术之用，不得更改后用于其他用途。对于使用插件时可能发生的任何情形，由使用者自行承担。</string>
+    <string name="teaching">点击“开启插件”，进入辅助服务设置窗口，找到“K抢红包”，打开功能开关，正常使用手机即可</string>
+    <string name="version_name">版本号:</string>
 </resources>

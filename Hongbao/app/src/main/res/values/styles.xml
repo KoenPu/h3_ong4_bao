@@ -8,4 +8,10 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <style name="setting_text_style">
+
+        <item name="android:textSize">20dp</item>
+        <item name="android:textColor">#c5a45e</item>
+    </style>
+
 </resources>
