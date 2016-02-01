@@ -5,6 +5,7 @@ import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.pm.PackageManager;
+import android.graphics.Rect;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -16,7 +17,7 @@ import pu.hongbao.utils.HongbaoSignature;
 /**
  * Created by koen on 2016/1/31.
  */
-public class KHongBaoNewService extends AccessibilityService{
+public class KHongBaoNewService extends AccessibilityService {
     /**
      * 微信的包名
      */
@@ -39,8 +40,8 @@ public class KHongBaoNewService extends AccessibilityService{
     private static final String WE_NOTIFICATION_TIP1 = "[微信红包]";
     private static final String WE_NOTIFICATION_TIP2 = "个联系人发来";
     private static final String WE_GET_MONEY_CH = "领取红包";
-    private static final String WECHAT_VIEW_SELF_CH = "查看红包";
-    private static final String WE_CHAI_HONG_BAO  = "发了一个红包";
+    private static final String WE_VIEW_SELF_CH = "查看红包";
+    private static final String WE_CHAI_HONG_BAO = "发了一个红包";
 
     private static final String WECHAT_DETAILS_EN = "Details";
     private static final String WECHAT_DETAILS_CH = "红包详情";
@@ -56,22 +57,22 @@ public class KHongBaoNewService extends AccessibilityService{
         switch (eventType) {
 
             case AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED: // 通知栏事件
-                checkNotification(event);
+                watchNotification(event);
                 break;
             case AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED:  //可能是进入应用时调用
                 currentAcitivityName = setCurrentActivityName(event);
+                // 用于获得窗口的名字。
+                break;
+            case AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED:  //应用内变化
+                // 用于实际操作。
                 if (currentAcitivityName.contains(WECHAT_LAUNCHER)) {
-                    watchList(event);
-                    getPacket(); // 点击红包
+                    if (watchList(event)) break; //在聊天列表
+                    watchChat(event); //在聊天页面
                 } else if (currentAcitivityName.contains(WECHAT_RECEIVER_CALSS)) {
                     openPacket(); // 领取红包
                 } else if (currentAcitivityName.contains(WECHAT_DETAIL)) {
                     backPacket();
                 }
-                break;
-            case AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED:  //应用内变化
-                if (currentAcitivityName.contains(WECHAT_LAUNCHER))
-                    getPacket();
                 break;
         }
     }
@@ -81,7 +82,7 @@ public class KHongBaoNewService extends AccessibilityService{
 
     }
 
-    private void checkNotification(AccessibilityEvent event) {
+    private void watchNotification(AccessibilityEvent event) {
         List<CharSequence> texts = event.getText();
         if (!texts.isEmpty()) {
             for (CharSequence text : texts) {
@@ -103,23 +104,59 @@ public class KHongBaoNewService extends AccessibilityService{
         }
     }
 
+    //监控聊天列表，并在发现红包时打开。
     private boolean watchList(AccessibilityEvent event) {
-        // Not a message
-        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || event.getSource() == null)
-            return false;
-
-        List<AccessibilityNodeInfo> nodes = event.getSource().findAccessibilityNodeInfosByText(WE_NOTIFICATION_TIP1);
-        if (!nodes.isEmpty()) {
-            AccessibilityNodeInfo nodeToClick = nodes.get(0);  // 打开第一个list;
-            CharSequence contentDescription = nodeToClick.getContentDescription();
-            if (contentDescription != null && !signature.
-                    getContentDescription().equals(contentDescription)) {  // 防止重复点击一个list;
-                nodeToClick.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                signature.setContentDescription(contentDescription.toString());
-                return true;
+        if (event.getSource() != null) {
+            List<AccessibilityNodeInfo> nodes = event.getSource().findAccessibilityNodeInfosByText(WE_NOTIFICATION_TIP1);
+            if (!nodes.isEmpty()) {
+                Log.e("koen","nodes的数量为："+ nodes.size());
+                AccessibilityNodeInfo nodeToClick = nodes.get(0);  // 打开第一个list;
+                CharSequence contentDescription = nodeToClick.getContentDescription();
+                if (contentDescription != null && !signature.getContentDescription().equals(contentDescription)) {
+                    nodeToClick.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    signature.setContentDescription(contentDescription.toString());
+                    return true;
+                }
             }
         }
         return false;
+    }
+
+    // 监控红包，并在发现时打开。
+    private void watchChat(AccessibilityEvent event) {
+        AccessibilityNodeInfo rootNodeInfo = getRootInActiveWindow();
+        if (rootNodeInfo != null) {
+            AccessibilityNodeInfo node = getLastNode(rootNodeInfo, WE_GET_MONEY_CH,WE_VIEW_SELF_CH);
+            if (node != null && //上次没有出现) {
+
+            }
+        }
+
+    }
+
+    private AccessibilityNodeInfo getLastNode(AccessibilityNodeInfo nodeInfo, String... texts ) {
+        int bottom = 0;
+        Rect bounds = new Rect();
+        AccessibilityNodeInfo lastNode = null;
+        if (texts != null) {
+            for (String text : texts) {
+
+                List<AccessibilityNodeInfo> nodes = nodeInfo.findAccessibilityNodeInfosByText(text);
+                if (nodes != null) {
+                    AccessibilityNodeInfo node = nodes.get(nodes.size() - 1);
+                    //通过边界来确定最后一个node。
+                    node.getBoundsInScreen(bounds);
+                    if (bounds.bottom > bottom) {
+
+                        Log.e("koen", "bounds.bottom==" + bounds.bottom);
+                        bottom = bounds.bottom;
+                        lastNode = node;
+                    }
+
+                }
+            }
+            return lastNode;
+        } else return null;
     }
 
     private String setCurrentActivityName(AccessibilityEvent event) {
@@ -136,14 +173,7 @@ public class KHongBaoNewService extends AccessibilityService{
         }
     }
 
-    // 领取红包
-    private void getPacket() {
-        //AccessibilityNodeInfo rootNode = getRootInActiveWindow();
-        /*if (rootNode != null) {
-            List<AccessibilityNodeInfo> nodeInfos = rootNode
-                    .findAccessibilityNodeInfosByText(WE_CHAI_HONG_BAO);
-        }*/
-    }
+
 
     // 打开红包
     private void openPacket() {
