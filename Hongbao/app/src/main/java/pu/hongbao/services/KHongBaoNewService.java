@@ -126,9 +126,10 @@ public class KHongBaoNewService extends AccessibilityService {
     private void watchChat(AccessibilityEvent event) {
         AccessibilityNodeInfo rootNodeInfo = getRootInActiveWindow();
         if (rootNodeInfo != null) {
+            String excludeWords = "";
             AccessibilityNodeInfo node = getLastNode(rootNodeInfo, WE_GET_MONEY_CH,WE_VIEW_SELF_CH);
-            if (node != null && //上次没有出现) {
-
+            if (node != null && signature.generateSignature(node, excludeWords)) {
+                node.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
             }
         }
 
