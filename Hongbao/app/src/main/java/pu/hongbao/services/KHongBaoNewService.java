@@ -67,7 +67,7 @@ public class KHongBaoNewService extends AccessibilityService {
                 // 用于实际操作。
                 if (currentAcitivityName.contains(WECHAT_LAUNCHER)) {
                     if (watchList(event)) break; //在聊天列表
-                    watchChat(event); //在聊天页面
+                    watchChat(); //在聊天页面
                 } else if (currentAcitivityName.contains(WECHAT_RECEIVER_CALSS)) {
                     openPacket(); // 领取红包
                 } else if (currentAcitivityName.contains(WECHAT_DETAIL)) {
@@ -123,11 +123,11 @@ public class KHongBaoNewService extends AccessibilityService {
     }
 
     // 监控红包，并在发现时打开。
-    private void watchChat(AccessibilityEvent event) {
+    private void watchChat() {
         AccessibilityNodeInfo rootNodeInfo = getRootInActiveWindow();
         if (rootNodeInfo != null) {
             String excludeWords = "";
-            AccessibilityNodeInfo node = getLastNode(rootNodeInfo, WE_GET_MONEY_CH,WE_VIEW_SELF_CH);
+            AccessibilityNodeInfo node = getLastNode(rootNodeInfo, WE_GET_MONEY_CH, WE_VIEW_SELF_CH);
             if (node != null && signature.generateSignature(node, excludeWords)) {
                 node.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
             }
@@ -178,11 +178,37 @@ public class KHongBaoNewService extends AccessibilityService {
 
     // 打开红包
     private void openPacket() {
+        AccessibilityNodeInfo rootNodeInfo = getRootInActiveWindow();
+        AccessibilityNodeInfo node = (rootNodeInfo.getChildCount() > 3) ? rootNodeInfo.getChild(3) : null;
+        Log.e("koen", "rootNodeInfo==="+ rootNodeInfo.getChildCount());
+        if (node != null && "android.widget.Button".equals(node.getClassName())) {
+            node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            return;
+        }
 
     }
 
     private void backPacket() {
+        /* 戳开红包，红包已被抢完，遍历节点匹配“红包详情”和“手慢了” */
+        AccessibilityNodeInfo rootNodeInfo = getRootInActiveWindow();
+        boolean hasNodes = this.hasOneOfThoseNodes(rootNodeInfo,
+                WECHAT_BETTER_LUCK_CH, WECHAT_DETAILS_CH,
+                WECHAT_BETTER_LUCK_EN, WECHAT_DETAILS_EN, WECHAT_EXPIRES_CH);
+        if (hasNodes) {
+            performGlobalAction(GLOBAL_ACTION_BACK);
+        }
 
+    }
+
+    private boolean hasOneOfThoseNodes(AccessibilityNodeInfo node, String... texts) {
+        for (String text : texts) {
+            if (text == null) continue;
+
+            List<AccessibilityNodeInfo> nodes = node.findAccessibilityNodeInfosByText(text);
+
+            if (!nodes.isEmpty()) return true;
+        }
+        return false;
     }
 
 }
